@@ -42,7 +42,7 @@ function isValidUrl(str: string): boolean {
 
 const Index = () => {
   useSeoMeta({
-    title: 'My Links',
+    title: 'My Dance Links',
     description: 'A simple link manager — save and organize your favorite URLs.',
   });
 
