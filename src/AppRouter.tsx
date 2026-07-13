@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
-const BASENAME = '/dance';
+// Use "/dance" on GitHub Pages, root otherwise (Shakespeare preview)
+const BASENAME = /^\/dance(\/|$)/.test(window.location.pathname) ? '/dance' : '/';
 import { ScrollToTop } from "./components/ScrollToTop";
 
 import Index from "./pages/Index";

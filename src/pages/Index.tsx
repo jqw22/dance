@@ -126,7 +126,7 @@ const Index = () => {
               aria-label="GitHub settings"
               className="text-muted-foreground"
             >
-              <Github className="h-5 w-5" />
+              <Settings className="h-5 w-5" />
             </Button>
           </div>
 
