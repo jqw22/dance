@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useSeoMeta } from '@unhead/react';
 import {
   Plus,
@@ -45,6 +45,10 @@ const Index = () => {
   const [tokenSaved, setTokenSaved] = useState(false);
 
   const tokenConfigured = hasGitHubToken();
+
+  const sortedLinks = useMemo(() => {
+    return [...links].sort((a, b) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }));
+  }, [links]);
 
   const handleAdd = useCallback(async () => {
     const trimmedLabel = label.trim();
@@ -251,7 +255,7 @@ const Index = () => {
               </Card>
             ))}
           </div>
-        ) : links.length === 0 ? (
+        ) : sortedLinks.length === 0 ? (
           <div className="text-center py-16">
             <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-muted mb-4">
               <LinkIcon className="h-6 w-6 text-muted-foreground" />
@@ -268,7 +272,7 @@ const Index = () => {
           </div>
         ) : (
           <ul className="space-y-3" role="list">
-            {links.map((link) => (
+            {sortedLinks.map((link) => (
               <li key={link.id}>
                 <Card className="py-4">
                   <CardContent className="px-5 py-0">
