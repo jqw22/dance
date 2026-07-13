@@ -1,35 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useSeoMeta } from '@unhead/react';
-import { Plus, ExternalLink, Trash2, Link as LinkIcon } from 'lucide-react';
+import { Plus, ExternalLink, Trash2, Link as LinkIcon, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
-interface LinkItem {
-  id: string;
-  label: string;
-  url: string;
-  createdAt: number;
-}
-
-const STORAGE_KEY = 'my-links';
-
-function loadLinks(): LinkItem[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      return JSON.parse(raw) as LinkItem[];
-    }
-  } catch {
-    // ignore parse errors
-  }
-  return [];
-}
-
-function saveLinks(links: LinkItem[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(links));
-}
+import { Skeleton } from '@/components/ui/skeleton';
+import { useLinks, type LinkItem } from '@/hooks/useLinks';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 function isValidUrl(str: string): boolean {
   try {
@@ -46,15 +24,13 @@ const Index = () => {
     description: 'A simple link manager — save and organize your favorite URLs.',
   });
 
-  const [links, setLinks] = useState<LinkItem[]>(() => loadLinks());
+  const { user } = useCurrentUser();
+  const { links, isLoading, addLink, deleteLink } = useLinks();
   const [label, setLabel] = useState('');
   const [url, setUrl] = useState('');
+  const [adding, setAdding] = useState(false);
 
-  useEffect(() => {
-    saveLinks(links);
-  }, [links]);
-
-  const handleAdd = useCallback(() => {
+  const handleAdd = useCallback(async () => {
     const trimmedLabel = label.trim();
     const trimmedUrl = url.trim();
 
@@ -67,21 +43,22 @@ const Index = () => {
 
     if (!isValidUrl(finalUrl)) return;
 
-    const newLink: LinkItem = {
-      id: crypto.randomUUID(),
-      label: trimmedLabel,
-      url: finalUrl,
-      createdAt: Date.now(),
-    };
+    setAdding(true);
+    try {
+      await addLink(trimmedLabel, finalUrl);
+      setLabel('');
+      setUrl('');
+    } finally {
+      setAdding(false);
+    }
+  }, [label, url, addLink]);
 
-    setLinks((prev) => [newLink, ...prev]);
-    setLabel('');
-    setUrl('');
-  }, [label, url]);
-
-  const handleDelete = useCallback((id: string) => {
-    setLinks((prev) => prev.filter((link) => link.id !== id));
-  }, []);
+  const handleDelete = useCallback(
+    async (id: string) => {
+      await deleteLink(id);
+    },
+    [deleteLink],
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -104,7 +81,9 @@ const Index = () => {
             <div>
               <h1 className="text-xl font-semibold tracking-tight">My Links</h1>
               <p className="text-sm text-muted-foreground">
-                Save and organize your favorite sites
+                {user
+                  ? 'Saved to your Nostr account — synced everywhere'
+                  : 'Saved to this device — log in with Nostr to sync'}
               </p>
             </div>
           </div>
@@ -126,6 +105,7 @@ const Index = () => {
                   onChange={(e) => setLabel(e.target.value)}
                   onKeyDown={handleKeyDown}
                   aria-label="Link label"
+                  disabled={adding}
                 />
               </div>
               <div className="flex-1 space-y-2">
@@ -135,11 +115,12 @@ const Index = () => {
                   onChange={(e) => setUrl(e.target.value)}
                   onKeyDown={handleKeyDown}
                   aria-label="Link URL"
+                  disabled={adding}
                 />
               </div>
               <Button
                 onClick={handleAdd}
-                disabled={!label.trim() || !url.trim()}
+                disabled={!label.trim() || !url.trim() || adding}
                 className="shrink-0"
               >
                 <Plus className="h-4 w-4 mr-1.5" />
@@ -150,7 +131,20 @@ const Index = () => {
         </Card>
 
         {/* Links List */}
-        {links.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="py-4">
+                <CardContent className="px-5 py-0">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-64" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : links.length === 0 ? (
           <div className="text-center py-16">
             <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-muted mb-4">
               <LinkIcon className="h-6 w-6 text-muted-foreground" />
@@ -159,12 +153,13 @@ const Index = () => {
               No links yet
             </h2>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              Add your first link above and it will show up here.
+              Add your first link above and it will show up here
+              {user ? ', synced to your Nostr account.' : '.'}
             </p>
           </div>
         ) : (
           <ul className="space-y-3" role="list">
-            {links.map((link) => (
+            {links.map((link: LinkItem) => (
               <li key={link.id}>
                 <Card className="py-4">
                   <CardContent className="px-5 py-0">
