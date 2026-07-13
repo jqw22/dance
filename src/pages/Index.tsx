@@ -1,13 +1,25 @@
 import { useState, useCallback } from 'react';
 import { useSeoMeta } from '@unhead/react';
-import { Plus, ExternalLink, Trash2, Link as LinkIcon, RefreshCw } from 'lucide-react';
+import {
+  Plus,
+  ExternalLink,
+  Trash2,
+  Link as LinkIcon,
+  Settings,
+  Check,
+  X,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useLinks, type LinkItem } from '@/hooks/useLinks';
-import { useCurrentUser } from '@/hooks/useCurrentUser';
+import {
+  useLinks,
+  hasGitHubToken,
+  setGitHubToken,
+  clearGitHubToken,
+} from '@/hooks/useLinks';
 
 function isValidUrl(str: string): boolean {
   try {
@@ -24,11 +36,15 @@ const Index = () => {
     description: 'A simple link manager — save and organize your favorite URLs.',
   });
 
-  const { user } = useCurrentUser();
   const { links, isLoading, addLink, deleteLink } = useLinks();
   const [label, setLabel] = useState('');
   const [url, setUrl] = useState('');
   const [adding, setAdding] = useState(false);
+  const [showTokenInput, setShowTokenInput] = useState(false);
+  const [tokenInput, setTokenInput] = useState('');
+  const [tokenSaved, setTokenSaved] = useState(false);
+
+  const tokenConfigured = hasGitHubToken();
 
   const handleAdd = useCallback(async () => {
     const trimmedLabel = label.trim();
@@ -69,24 +85,115 @@ const Index = () => {
     [handleAdd],
   );
 
+  const handleSaveToken = () => {
+    const trimmed = tokenInput.trim();
+    if (trimmed) {
+      setGitHubToken(trimmed);
+      setTokenInput('');
+      setShowTokenInput(false);
+      setTokenSaved(true);
+      setTimeout(() => setTokenSaved(false), 2000);
+    }
+  };
+
+  const handleRemoveToken = () => {
+    clearGitHubToken();
+  };
+
   return (
     <div className="min-h-dvh flex flex-col bg-background">
       {/* Header */}
       <header className="border-b border-border">
         <div className="container max-w-2xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <LinkIcon className="h-5 w-5" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <LinkIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold tracking-tight">My Links</h1>
+                <p className="text-sm text-muted-foreground">
+                  {tokenConfigured
+                    ? 'Saved to GitHub — synced everywhere'
+                    : 'Saved to this device'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">My Links</h1>
-              <p className="text-sm text-muted-foreground">
-                {user
-                  ? 'Saved to your Nostr account — synced everywhere'
-                  : 'Saved to this device — log in with Nostr to sync'}
-              </p>
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowTokenInput(!showTokenInput)}
+              aria-label="GitHub settings"
+              className="text-muted-foreground"
+            >
+              <Github className="h-5 w-5" />
+            </Button>
           </div>
+
+          {/* GitHub Token Setup */}
+          {showTokenInput && (
+            <Card className="mt-4">
+              <CardContent className="pt-4">
+                {tokenConfigured ? (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Check className="h-4 w-4 text-green-500" />
+                      GitHub token configured — links sync to your repo
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveToken}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1.5" />
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-sm text-muted-foreground">
+                      <p className="mb-1">
+                        Enter a{' '}
+                        <a
+                          href="https://github.com/settings/tokens?type=beta"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline hover:text-foreground"
+                        >
+                          GitHub fine-grained token
+                        </a>{' '}
+                        with <strong>Contents: Read & write</strong> access to this repo.
+                      </p>
+                      <p className="text-xs">
+                        Token is stored only on this device.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        placeholder="github_pat_..."
+                        value={tokenInput}
+                        onChange={(e) => setTokenInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveToken();
+                        }}
+                        aria-label="GitHub token"
+                      />
+                      <Button onClick={handleSaveToken} disabled={!tokenInput.trim()}>
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {tokenSaved && (
+            <p className="text-sm text-green-600 mt-2 text-center">
+              Token saved! Links will now sync to GitHub.
+            </p>
+          )}
         </div>
       </header>
 
@@ -154,12 +261,14 @@ const Index = () => {
             </h2>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
               Add your first link above and it will show up here
-              {user ? ', synced to your Nostr account.' : '.'}
+              {tokenConfigured
+                ? ', saved to your GitHub repo.'
+                : '. Set up a GitHub token to sync across devices.'}
             </p>
           </div>
         ) : (
           <ul className="space-y-3" role="list">
-            {links.map((link: LinkItem) => (
+            {links.map((link) => (
               <li key={link.id}>
                 <Card className="py-4">
                   <CardContent className="px-5 py-0">
