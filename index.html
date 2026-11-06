@@ -1,12 +1,677 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="content-security-policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-src 'self' https:; font-src 'self'; base-uri 'self'; connect-src 'self' blob: https: wss:; img-src 'self' data: blob: https:; media-src 'self' https:">
-    </head>
-    <body>
-        <div id="root"></div>
-        <script type="module" src="/src/main.tsx"></script>
-    </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dance</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%83%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<style>
+  #add-link-form, #add-heading-form {
+    background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px;
+    padding: 14px 16px; margin-bottom: 20px;
+  }
+  #add-link-form h5, #add-heading-form h5 { margin: 0 0 10px 0; }
+  #add-link-form label, #add-heading-form label { display: block; font-size: 0.85em; margin-bottom: 2px; color: #555; }
+  #add-link-form input, #add-link-form select, #add-heading-form input {
+    width: 100%; padding: 6px 8px; margin-bottom: 8px;
+    border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; box-sizing: border-box;
+  }
+  #add-link-form button, #add-heading-form button {
+    padding: 6px 16px; background: #4078c0; color: #fff;
+    border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em;
+  }
+  .link-row { display: inline-flex; align-items: center; gap: 4px; margin-right: 6px; }
+  .link-row .del-btn {
+    width: 18px; height: 18px; line-height: 16px; text-align: center; font-size: 14px;
+    font-weight: bold; color: #c00; background: none; border: 1px solid transparent;
+    border-radius: 50%; cursor: pointer; padding: 0; opacity: 0.35; flex-shrink: 0;
+  }
+  .link-row:hover .del-btn { opacity: 1; border-color: #c00; }
+  .link-row .del-btn:hover { background: #fee; }
+  #controls { margin-bottom: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #controls button {
+    padding: 4px 12px; background: #f0f0f0; border: 1px solid #ccc;
+    border-radius: 4px; cursor: pointer; font-size: 0.85em;
+  }
+  #count { font-size: 0.8em; color: #888; }
+  .edit-ui { display: none; }
+  body.editing .edit-ui { display: block; }
+  .empty-category { color: #999; font-style: italic; font-size: 0.9em; }
+  .rename-btn {
+    margin-left: 8px; padding: 1px 8px; font-size: 0.7em; font-weight: normal; vertical-align: middle;
+    background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; color: #444;
+  }
+  .rename-form { display: flex; gap: 6px; align-items: center; margin: 1.2em 0 0.6em; flex-wrap: wrap; }
+  .rename-form input {
+    flex: 1 1 200px; min-width: 0; padding: 5px 8px; font-size: 0.95em; font-weight: 600;
+    border: 1px solid #4078c0; border-radius: 4px; box-sizing: border-box;
+  }
+  .rename-form button {
+    padding: 5px 12px; font-size: 0.85em; border: 1px solid #ccc; background: #f0f0f0;
+    border-radius: 4px; cursor: pointer;
+  }
+  .rename-form .rename-save { background: #4078c0; color: #fff; border-color: #4078c0; }
+
+  /* status banner */
+  #status { display: none; font-size: 0.85em; border-radius: 5px; padding: 8px 12px; margin-bottom: 14px; }
+  #status.show { display: block; }
+  #status.ok { background: #e6f4ea; color: #137333; border: 1px solid #b7e1c1; }
+  #status.err { background: #fce8e6; color: #a50e0e; border: 1px solid #f3b7b3; }
+  #status.info { background: #e8f0fe; color: #1a56c4; border: 1px solid #c6dafc; }
+  .status-btn {
+    margin-left: 10px; padding: 3px 10px; font-size: 0.9em; border: 1px solid currentColor;
+    background: rgba(255,255,255,0.6); border-radius: 4px; cursor: pointer; color: inherit;
+  }
+
+  /* setup panel */
+  #setup { background: #fbfbfb; border: 1px solid #e2e2e2; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; }
+  #setup summary { cursor: pointer; font-size: 0.9em; color: #444; font-weight: 600; }
+  #setup .note { font-size: 0.8em; color: #666; line-height: 1.5; margin: 10px 0; }
+  #setup .grid { display: grid; grid-template-columns: 90px 1fr; gap: 6px 10px; align-items: center; }
+  #setup label { font-size: 0.82em; color: #555; }
+  #setup input { width: 100%; padding: 5px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85em; box-sizing: border-box; }
+  #setup .hint { grid-column: 2; font-size: 0.75em; color: #888; line-height: 1.5; margin: 2px 0 4px; }
+  #setup .actions { margin-top: 10px; }
+  #setup button { padding: 5px 12px; font-size: 0.82em; border: 1px solid #ccc; background: #f0f0f0; border-radius: 4px; cursor: pointer; margin-right: 6px; }
+  #setup code { background: #eee; padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body class="stackedit">
+<div class="stackedit__left">
+  <div class="stackedit__toc"><ul><li><a href="#Dance">Dance</a><ul id="toc-list"></ul></li></ul></div>
+</div>
+<div class="stackedit__right">
+  <div class="stackedit__html">
+    <h4 id="Dance">Dance</h4>
+
+    <div id="status"></div>
+
+    <div id="controls">
+      <button id="toggle-edit" type="button">Edit Links</button>
+      <button id="btn-refresh" type="button">&#8635; Reload from GitHub</button>
+      <span id="count"></span>
+    </div>
+
+    <details id="setup">
+      <summary>&#9881; GitHub sync setup</summary>
+      <p class="note">
+        Your links live in <code>links.json</code> in the GitHub repo below. This page reads that file on every
+        load and writes your changes back to it — so a link added on your phone shows up on your laptop, and vice versa.
+        To <em>save</em> changes you need a GitHub token, which is stored only in this browser (never uploaded anywhere but GitHub).
+      </p>
+      <div class="grid">
+        <label for="cfg-owner">Owner</label><input id="cfg-owner" placeholder="jqw22" autocomplete="off">
+        <label for="cfg-repo">Repo</label><input id="cfg-repo" placeholder="dance" autocomplete="off">
+        <label for="cfg-branch">Branch</label><input id="cfg-branch" placeholder="main" autocomplete="off">
+        <label for="cfg-path">File path</label><input id="cfg-path" placeholder="links.json" autocomplete="off">
+        <label for="cfg-token">Token</label><input id="cfg-token" type="password" placeholder="github_pat_…" autocomplete="off">
+        <span class="hint">
+          Create one at
+          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens</a>
+          — a fine-grained token with access to only this repo and <em>Contents: Read and write</em>.
+        </span>
+      </div>
+      <div class="actions">
+        <button id="cfg-save" type="button">Save settings</button>
+        <button id="cfg-test" type="button">Test connection</button>
+      </div>
+    </details>
+
+    <div id="add-link-form" class="edit-ui">
+      <h5>Add a Link</h5>
+      <label for="link-title">Title</label>
+      <input type="text" id="link-title" placeholder="e.g. Example Site">
+      <label for="link-url">URL</label>
+      <input type="url" id="link-url" placeholder="https://example.com" value="https://">
+      <label for="link-category">Category</label>
+      <select id="link-category"></select>
+      <button id="btn-add" type="button">Add Link</button>
+    </div>
+
+    <div id="add-heading-form" class="edit-ui">
+      <h5>Add a Heading</h5>
+      <label for="heading-name">Heading name</label>
+      <input type="text" id="heading-name" placeholder="e.g. Recipes">
+      <button id="btn-add-heading" type="button">Add Heading</button>
+    </div>
+
+    <div id="links-container"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Own keys: this page shares jqw22.github.io (and so localStorage) with the links page,
+  // and must not read its repo settings or cached list.
+  var CFG_KEY = "dance_gh_cfg";
+  var CACHE_KEY = "dance_cache_v1";
+  var LINKS_CFG_KEY = "links_gh_cfg";
+  var OLD_TOKEN_KEY = "github-token";
+
+  // Starter headings, only used when there are no links at all yet. Otherwise the headings
+  // come from the categories in links.json, so a rename is saved with the links themselves.
+  var CATS = ["Dances"];
+
+  // base = the list as last read from / written to GitHub; used to work out local adds/removes
+  // renames = headings renamed here since base ({old: new}), so links added under the old
+  //           name on another device are moved to the new name when merging
+  // emptyCats = headings emptied this session, kept on screen so links can be added back
+  var state = { links: [], base: null, sha: null, pending: false, renames: {}, emptyCats: [] };
+  var renamingCat = null;
+  var statusTimer = null;
+
+  /* ------------------------------------------------------------------ utils */
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s); }
+  function b64enc(str) {
+    var bytes = new TextEncoder().encode(str), bin = "";
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function b64dec(b64) {
+    var bin = atob(String(b64).replace(/\s/g, ""));
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  function setStatus(kind, msg, actions) {
+    var el = $("status");
+    if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+    el.className = "status show " + kind;
+    el.textContent = "";
+    var span = document.createElement("span");
+    span.textContent = msg;
+    el.appendChild(span);
+    (actions || []).forEach(function (a) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "status-btn";
+      b.textContent = a.label;
+      b.onclick = a.fn;
+      el.appendChild(b);
+    });
+    if (kind === "ok" && !(actions && actions.length)) {
+      statusTimer = setTimeout(function () { el.className = "status"; el.textContent = ""; }, 6000);
+    }
+  }
+
+  /* ----------------------------------------------------------------- config */
+  function getCfg() {
+    var c = {};
+    try { c = JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch (e) { c = {}; }
+    if (!c.owner) c.owner = "jqw22";
+    if (!c.repo) c.repo = "dance";
+    if (!c.branch) c.branch = "main";
+    if (!c.path) c.path = "links.json";
+    // No token saved here yet: reuse one already on this device. First the token the old
+    // dance app stored (it already had access to this repo), then the links page's token,
+    // which needs Contents: Read and write on jqw22/dance as well as jqw22/links.
+    if (!c.token) {
+      try { c.token = localStorage.getItem(OLD_TOKEN_KEY) || ""; } catch (e) {}
+    }
+    if (!c.token) {
+      try { var lc = JSON.parse(localStorage.getItem(LINKS_CFG_KEY)) || {}; if (lc.token) c.token = lc.token; } catch (e) {}
+    }
+    return c;
+  }
+  function saveCfg(c) { localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
+
+  /* ------------------------------------------------------------ local cache */
+  function putCache(links, pending) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ links: links, base: state.base, renames: state.renames, pending: !!pending, t: Date.now() })); } catch (e) {}
+  }
+  function readCache() {
+    try {
+      var d = JSON.parse(localStorage.getItem(CACHE_KEY));
+      if (d && Array.isArray(d.links)) return d;
+    } catch (e) {}
+    return null;
+  }
+
+  /* ----------------------------------------------------------------- github */
+  function contentsBase(cfg) {
+    return "https://api.github.com/repos/" + encodeURIComponent(cfg.owner) + "/" + encodeURIComponent(cfg.repo) +
+      "/contents/" + cfg.path.split("/").map(encodeURIComponent).join("/");
+  }
+  function ghHeaders(cfg, json) {
+    var h = { "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
+    if (json) h["Content-Type"] = "application/json";
+    if (cfg.token) h["Authorization"] = "Bearer " + cfg.token;
+    return h;
+  }
+  function normalise(arr) {
+    var out = [];
+    for (var i = 0; i < arr.length; i++) {
+      var l = arr[i];
+      if (!l || typeof l !== "object") continue;
+      var t = esc(l.title).trim(), u = esc(l.url).trim();
+      if (!t || !u) continue;
+      out.push({ title: t, url: u, category: esc(l.category).trim() || "Uncategorised" });
+    }
+    return out;
+  }
+  function fetchJson(text) {
+    var links = JSON.parse(text);
+    if (!Array.isArray(links)) throw new Error("links.json does not contain a list");
+    return normalise(links);
+  }
+
+  function fetchApi(cfg) {
+    return fetch(contentsBase(cfg) + "?ref=" + encodeURIComponent(cfg.branch), { headers: ghHeaders(cfg, false), cache: "no-store" })
+      .then(function (res) {
+        if (res.status === 404) return { missing: true };
+        if (!res.ok) {
+          var msg = "GitHub API error " + res.status;
+          if (res.status === 401) msg = "GitHub token is invalid or expired";
+          if (res.status === 403) msg = "GitHub denied the request (rate limit or missing permission)";
+          var e = new Error(msg); e.status = res.status; throw e;
+        }
+        return res.json().then(function (data) {
+          if (Array.isArray(data)) throw new Error("The configured path is a folder, not a file");
+          return { links: fetchJson(b64dec(data.content)), sha: data.sha };
+        });
+      });
+  }
+
+  function fetchRaw(cfg) {
+    var url = "https://raw.githubusercontent.com/" + encodeURIComponent(cfg.owner) + "/" + encodeURIComponent(cfg.repo) +
+      "/" + encodeURIComponent(cfg.branch) + "/" + cfg.path.split("/").map(encodeURIComponent).join("/") + "?_=" + Date.now();
+    return fetch(url, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("raw file HTTP " + res.status);
+      return res.text().then(function (t) { return { links: fetchJson(t), sha: null, raw: true }; });
+    });
+  }
+
+  function putFile(cfg, links, sha) {
+    var body = {
+      message: "Update links (" + new Date().toISOString().slice(0, 16).replace("T", " ") + ")",
+      content: b64enc(JSON.stringify(links, null, 2) + "\n"),
+      branch: cfg.branch
+    };
+    if (sha) body.sha = sha;
+    return fetch(contentsBase(cfg), { method: "PUT", headers: ghHeaders(cfg, true), body: JSON.stringify(body) })
+      .then(function (res) {
+        if (res.ok) return res.json();
+        return res.json().catch(function () { return {}; }).then(function (j) {
+          var e = new Error(j.message || ("HTTP " + res.status)); e.status = res.status; throw e;
+        });
+      });
+  }
+
+  /* ------------------------------------------------------------------ merge */
+  function linkKey(l) { return l.title + "\n" + l.url + "\n" + l.category; }
+
+  // Three-way merge: apply this browser's changes (local vs base) on top of the
+  // latest remote list, so links added/removed on another device are kept.
+  // Without a base (e.g. old cached edits) only additions can be known, so it unions.
+  // Headings renamed here are applied to the result, so remote links under an old name follow it.
+  function mergeLinks(remote, base, local, renames) {
+    var localKeys = {}, baseKeys = {}, out = [], seen = {};
+    renames = renames || {};
+    local.forEach(function (l) { localKeys[linkKey(l)] = true; });
+    (base || []).forEach(function (l) { baseKeys[linkKey(l)] = true; });
+    function add(l) {
+      if (Object.prototype.hasOwnProperty.call(renames, l.category)) {
+        l = { title: l.title, url: l.url, category: renames[l.category] };
+      }
+      var k = linkKey(l); if (!seen[k]) { seen[k] = true; out.push(l); }
+    }
+    remote.forEach(function (l) {
+      var k = linkKey(l);
+      if (base && baseKeys[k] && !localKeys[k]) return; // removed here
+      add(l);
+    });
+    local.forEach(function (l) {
+      var k = linkKey(l);
+      if (!baseKeys[k]) add(l); // added here
+    });
+    return out;
+  }
+
+  /* -------------------------------------------------------------- load/save */
+  function cmp(a, b) { return a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }); }
+  function sortLinks(links) {
+    return links.slice().sort(function (a, b) {
+      return cmp(a.category, b.category) || cmp(a.title, b.title);
+    });
+  }
+
+  function loadRemote(cfg) {
+    return fetchApi(cfg).catch(function (err) {
+      return fetchRaw(cfg).then(function (r) { r.note = err.message; return r; });
+    }).then(function (r) {
+      if (r.missing) { state.links = []; state.base = []; state.sha = null; return { created: true }; }
+      state.links = r.links; state.base = r.links.slice(); state.sha = r.sha || null;
+      state.renames = {}; state.emptyCats = [];
+      return { raw: !!r.raw, note: r.note };
+    });
+  }
+
+  function reload() {
+    var cfg = getCfg();
+    setStatus("info", "Loading links…");
+    loadRemote(cfg).then(function (info) {
+      state.pending = false;
+      putCache(state.links, false);
+      render();
+      if (info.created) setStatus("ok", "No links.json found in the repo yet — it will be created when you add your first link.");
+      else if (info.raw) setStatus("info", "Loaded from GitHub's raw file (" + (info.note || "") + "). Edits still save normally.");
+      else setStatus("ok", "Loaded " + state.links.length + " links from GitHub \u2713");
+    }).catch(function (e) {
+      render();
+      setStatus("err", "Could not load from GitHub: " + e.message, [
+        { label: "Retry", fn: reload },
+        { label: "Setup", fn: function () { $("setup").open = true; $("setup").scrollIntoView(); } }
+      ]);
+    });
+  }
+
+  function commit() {
+    var cfg = getCfg();
+    if (!cfg.token) {
+      state.pending = true; putCache(state.links, true);
+      setStatus("info", "Saved in this browser only. Add a GitHub token in Setup to sync across devices.", [
+        { label: "Setup", fn: function () { $("setup").open = true; $("setup").scrollIntoView(); } },
+        { label: "Download backup", fn: downloadBackup }
+      ]);
+      return;
+    }
+    var links = sortLinks(state.links);
+    putFile(cfg, links, state.sha).catch(function (e) {
+      if (e.status === 409 || e.status === 422) {
+        // stale/missing sha: the file changed elsewhere → merge our edits into the latest version and retry
+        return fetchApi(cfg).then(function (r) {
+          links = sortLinks(mergeLinks(r.missing ? [] : r.links, state.base, state.links, state.renames));
+          return putFile(cfg, links, r.missing ? null : r.sha);
+        });
+      }
+      throw e;
+    }).then(function (out) {
+      state.links = links;
+      state.base = links.slice();
+      state.sha = (out && out.content && out.content.sha) || null;
+      state.renames = {};
+      state.pending = false;
+      putCache(links, false);
+      render();
+      setStatus("ok", "Saved to GitHub \u2713 — reload this page on any other device and it will be there.");
+    }).catch(function (e) {
+      state.pending = true; putCache(state.links, true);
+      setStatus("err", "Could not save to GitHub: " + e.message + ". Your change is kept in this browser.", [
+        { label: "Retry save", fn: commit },
+        { label: "Download backup", fn: downloadBackup }
+      ]);
+    });
+  }
+
+  function downloadBackup() {
+    var b = new Blob([JSON.stringify(sortLinks(state.links), null, 2) + "\n"], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(b); a.download = "links.json"; a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  }
+
+  /* ---------------------------------------------------------------- render */
+  function editing() { return document.body.classList.contains("editing"); }
+
+  // Headings A to Z: every category used by a link, plus any emptied this session.
+  function categoryList() {
+    var list = state.links.length ? [] : CATS.slice();
+    state.links.forEach(function (l) { if (list.indexOf(l.category) < 0) list.push(l.category); });
+    state.emptyCats.forEach(function (c) { if (list.indexOf(c) < 0) list.push(c); });
+    return list.sort(cmp);
+  }
+
+  function render() {
+    var cats = categoryList();
+    $("toc-list").innerHTML = cats.map(function (c) {
+      return '<li><a href="#' + encodeURIComponent(c) + '">' + c.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</a></li>";
+    }).join("");
+
+    var byCat = {};
+    state.links.forEach(function (l) { (byCat[l.category] = byCat[l.category] || []).push(l); });
+    Object.keys(byCat).forEach(function (k) { byCat[k].sort(function (a, b) { return a.title.localeCompare(b.title); }); });
+
+    var cont = $("links-container");
+    cont.textContent = "";
+    cats.forEach(function (ct) {
+      cont.appendChild(renamingCat === ct ? renameForm(ct) : heading(ct));
+      var cl = byCat[ct] || [];
+      if (!cl.length) {
+        var p = document.createElement("p");
+        p.className = "empty-category"; p.textContent = "No links yet.";
+        cont.appendChild(p); return;
+      }
+      cl.forEach(function (l) {
+        var row = document.createElement("span");
+        row.className = "link-row";
+        var a = document.createElement("a");
+        a.href = l.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = l.title;
+        row.appendChild(a);
+        if (editing()) {
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "del-btn"; b.title = "Remove"; b.innerHTML = "&times;";
+          b.onclick = function () { if (confirm('Remove "' + l.title + '"?')) removeLink(l); };
+          row.appendChild(b);
+        }
+        cont.appendChild(row);
+        cont.appendChild(document.createElement("br"));
+      });
+    });
+
+    var sel = $("link-category");
+    var cur = sel.value;
+    sel.textContent = "";
+    cats.forEach(function (c) {
+      var o = document.createElement("option"); o.value = c; o.textContent = c; sel.appendChild(o);
+    });
+    if (cats.indexOf(cur) >= 0) sel.value = cur;
+
+    $("count").textContent = state.links.length + " link" + (state.links.length === 1 ? "" : "s");
+  }
+
+  function heading(ct) {
+    var h = document.createElement("h5");
+    h.id = encodeURIComponent(ct);
+    h.className = "cat-heading";
+    h.appendChild(document.createTextNode(ct));
+    if (editing()) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "rename-btn"; b.textContent = "Rename";
+      b.title = 'Rename "' + ct + '"';
+      b.onclick = function () { renamingCat = ct; render(); };
+      h.appendChild(b);
+    }
+    return h;
+  }
+
+  function renameForm(ct) {
+    var f = document.createElement("div");
+    f.className = "rename-form";
+    f.id = encodeURIComponent(ct);
+    var inp = document.createElement("input");
+    inp.type = "text"; inp.value = ct; inp.setAttribute("aria-label", "New name for " + ct);
+    var ok = document.createElement("button");
+    ok.type = "button"; ok.className = "rename-save"; ok.textContent = "Save";
+    var no = document.createElement("button");
+    no.type = "button"; no.textContent = "Cancel";
+    function cancel() { renamingCat = null; render(); }
+    ok.onclick = function () { renameCategory(ct, inp.value); };
+    no.onclick = cancel;
+    inp.onkeydown = function (e) {
+      if (e.key === "Enter") ok.click();
+      else if (e.key === "Escape") cancel();
+    };
+    f.appendChild(inp); f.appendChild(ok); f.appendChild(no);
+    setTimeout(function () { inp.focus(); inp.select(); }, 0);
+    return f;
+  }
+
+  function renameCategory(from, to) {
+    to = String(to || "").replace(/\s+/g, " ").trim();
+    if (!to) { alert("Please enter a heading name."); return; }
+    renamingCat = null;
+    if (to === from) { render(); return; }
+    var cats = categoryList();
+    if (cats.indexOf(to) >= 0 &&
+        !confirm('There is already a heading called "' + to + '". Move the links from "' + from + '" into it?')) {
+      render(); return;
+    }
+    var moved = 0;
+    state.links = state.links.map(function (l) {
+      if (l.category !== from) return l;
+      moved++;
+      return { title: l.title, url: l.url, category: to };
+    });
+    // keep earlier renames pointing at the newest name, then record this one
+    Object.keys(state.renames).forEach(function (k) { if (state.renames[k] === from) state.renames[k] = to; });
+    state.renames[from] = to;
+    delete state.renames[to];
+    var ei = state.emptyCats.indexOf(from);
+    if (ei >= 0) { state.emptyCats.splice(ei, 1); if (state.emptyCats.indexOf(to) < 0) state.emptyCats.push(to); }
+    if (!moved) {
+      // an empty heading only exists on this page, so there is nothing to save
+      if (state.emptyCats.indexOf(to) < 0) state.emptyCats.push(to);
+      render(); return;
+    }
+    // remove now-duplicate links if two headings were merged
+    var seen = {};
+    state.links = state.links.filter(function (l) { var k = linkKey(l); if (seen[k]) return false; seen[k] = true; return true; });
+    render();
+    commit();
+  }
+
+  // A new heading has no links yet, so it lives only on this page until a link is added under it.
+  function addHeading(name) {
+    name = String(name || "").replace(/\s+/g, " ").trim();
+    if (!name) { alert("Please enter a heading name."); return false; }
+    var cats = categoryList();
+    for (var i = 0; i < cats.length; i++) {
+      if (cats[i].toLowerCase() === name.toLowerCase()) { alert('There is already a heading called "' + cats[i] + '".'); return false; }
+    }
+    state.emptyCats.push(name);
+    render();
+    $("link-category").value = name;
+    setStatus("info", '"' + name + '" added. Add a link under it to save it to GitHub.');
+    return true;
+  }
+
+  function addLink(t, u, c) {
+    for (var i = 0; i < state.links.length; i++) {
+      if (state.links[i].url === u && state.links[i].title === t) { alert("That link is already in the list."); return; }
+    }
+    state.links.push({ title: t, url: u, category: c });
+    render();
+    commit();
+  }
+  function removeLink(l) {
+    var i = state.links.indexOf(l);
+    if (i < 0) return;
+    state.links.splice(i, 1);
+    if (!state.links.some(function (x) { return x.category === l.category; }) &&
+        state.emptyCats.indexOf(l.category) < 0) state.emptyCats.push(l.category);
+    render();
+    commit();
+  }
+
+  /* ---------------------------------------------------------------- set-up */
+  function fillSetup() {
+    var c = getCfg();
+    $("cfg-owner").value = c.owner;
+    $("cfg-repo").value = c.repo;
+    $("cfg-branch").value = c.branch;
+    $("cfg-path").value = c.path;
+    $("cfg-token").value = c.token || "";
+  }
+  function readSetup() {
+    return {
+      owner: $("cfg-owner").value.trim(),
+      repo: $("cfg-repo").value.trim(),
+      branch: $("cfg-branch").value.trim() || "main",
+      path: $("cfg-path").value.trim() || "links.json",
+      token: $("cfg-token").value.trim()
+    };
+  }
+
+  function init() {
+    fillSetup();
+    if (!getCfg().token) $("setup").open = true;
+
+    $("toggle-edit").onclick = function () {
+      document.body.classList.toggle("editing");
+      this.textContent = editing() ? "Done Editing" : "Edit Links";
+      renamingCat = null;
+      render();
+    };
+    $("btn-refresh").onclick = reload;
+    $("cfg-save").onclick = function () {
+      var c = readSetup();
+      if (!c.owner || !c.repo) { setStatus("err", "Owner and repo are required."); return; }
+      saveCfg(c);
+      setStatus("ok", "Settings saved to this browser.");
+      reload();
+    };
+    $("cfg-test").onclick = function () {
+      var c = readSetup();
+      if (!c.owner || !c.repo) { setStatus("err", "Owner and repo are required."); return; }
+      setStatus("info", "Testing…");
+      var hdrs = ghHeaders(c, false);
+      fetch(contentsBase(c) + "?ref=" + encodeURIComponent(c.branch), { headers: hdrs, cache: "no-store" })
+        .then(function (res) {
+          if (res.status === 404) { setStatus("info", "Repo/branch reachable, but " + c.path + " doesn't exist yet — it will be created on first save."); return; }
+          if (!res.ok) throw new Error("HTTP " + res.status + (res.status === 401 ? " (bad token)" : ""));
+          return res.json().then(function (d) {
+            setStatus("ok", "Connection OK — found " + c.path + (c.token ? " with write-ready token." : " (read-only: no token set)."));
+          });
+        })
+        .catch(function (e) { setStatus("err", "Connection failed: " + e.message); });
+    };
+
+    $("btn-add").onclick = function () {
+      var t = $("link-title").value.trim(), u = $("link-url").value.trim(), c = $("link-category").value;
+      if (!t) { alert("Please enter a title."); return; }
+      if (!u) { alert("Please enter a URL."); return; }
+      if (!/^https?:\/\/.+/i.test(u)) { alert("URL must start with http:// or https://"); return; }
+      addLink(t, u, c);
+      $("link-title").value = "";
+      $("link-url").value = "https://";
+      $("link-title").focus();
+    };
+    $("link-url").onkeydown = function (e) { if (e.key === "Enter") $("btn-add").click(); };
+    $("link-title").onkeydown = function (e) { if (e.key === "Enter") $("btn-add").click(); };
+    $("btn-add-heading").onclick = function () {
+      if (addHeading($("heading-name").value)) {
+        $("heading-name").value = "";
+        $("link-title").focus();
+      }
+    };
+    $("heading-name").onkeydown = function (e) { if (e.key === "Enter") $("btn-add-heading").click(); };
+
+    var cache = readCache();
+    if (cache && cache.pending && cache.links.length) {
+      state.links = cache.links;
+      state.base = Array.isArray(cache.base) ? cache.base : null;
+      state.renames = cache.renames && typeof cache.renames === "object" ? cache.renames : {};
+      state.pending = true;
+      render();
+      setStatus("info", "You have unsaved changes from a previous session (" + cache.links.length + " links).", [
+        { label: "Retry save", fn: commit },
+        { label: "Download backup", fn: downloadBackup },
+        { label: "Discard & reload", fn: reload }
+      ]);
+      // sha stays null, so the first save gets a 422 and goes through the merge path
+      return;
+    }
+    if (cache && cache.links && cache.links.length) { state.links = cache.links; state.base = cache.links.slice(); render(); }
+    reload();
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
 </html>
