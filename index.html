@@ -53,6 +53,33 @@
   }
   .rename-form .rename-save { background: #4078c0; color: #fff; border-color: #4078c0; }
 
+  /* video grid */
+  .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; margin: 0 0 24px; }
+  @media (max-width: 600px) { .video-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+  .video-card { position: relative; margin: 0; min-width: 0; }
+  .video-frame {
+    position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; padding: 0; border: 0;
+    border-radius: 6px; overflow: hidden; background: #111; cursor: pointer;
+  }
+  .video-frame img, .video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; object-fit: cover; }
+  .video-frame .play {
+    position: absolute; left: 50%; top: 50%; width: 52px; height: 36px; margin: -18px 0 0 -26px;
+    border-radius: 9px; background: rgba(0,0,0,0.7); transition: background 0.15s;
+  }
+  .video-frame .play::after {
+    content: ""; position: absolute; left: 21px; top: 10px;
+    border-style: solid; border-width: 8px 0 8px 14px; border-color: transparent transparent transparent #fff;
+  }
+  .video-frame:hover .play, .video-frame:focus-visible .play { background: #f00; }
+  .video-frame.no-thumb { display: flex; align-items: center; justify-content: center; color: #ccc; font-size: 0.85em; text-decoration: none; }
+  .video-caption { display: flex; align-items: flex-start; gap: 6px; margin-top: 6px; font-size: 0.9em; line-height: 1.35; }
+  .video-caption a { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .video-caption .del-btn {
+    width: 20px; height: 20px; line-height: 18px; text-align: center; font-size: 15px; font-weight: bold;
+    color: #c00; background: none; border: 1px solid #c00; border-radius: 50%; cursor: pointer; padding: 0; flex-shrink: 0;
+  }
+  .video-caption .del-btn:hover { background: #fee; }
+
   /* status banner */
   #status { display: none; font-size: 0.85em; border-radius: 5px; padding: 8px 12px; margin-bottom: 14px; }
   #status.show { display: block; }
@@ -121,9 +148,9 @@
     <div id="add-link-form" class="edit-ui">
       <h5>Add a Link</h5>
       <label for="link-title">Title</label>
-      <input type="text" id="link-title" placeholder="e.g. Example Site">
+      <input type="text" id="link-title" placeholder="e.g. Tina Tango">
       <label for="link-url">URL</label>
-      <input type="url" id="link-url" placeholder="https://example.com" value="https://">
+      <input type="url" id="link-url" placeholder="https://youtu.be/…" value="https://">
       <label for="link-category">Category</label>
       <select id="link-category"></select>
       <button id="btn-add" type="button">Add Link</button>
@@ -445,21 +472,10 @@
         p.className = "empty-category"; p.textContent = "No links yet.";
         cont.appendChild(p); return;
       }
-      cl.forEach(function (l) {
-        var row = document.createElement("span");
-        row.className = "link-row";
-        var a = document.createElement("a");
-        a.href = l.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = l.title;
-        row.appendChild(a);
-        if (editing()) {
-          var b = document.createElement("button");
-          b.type = "button"; b.className = "del-btn"; b.title = "Remove"; b.innerHTML = "&times;";
-          b.onclick = function () { if (confirm('Remove "' + l.title + '"?')) removeLink(l); };
-          row.appendChild(b);
-        }
-        cont.appendChild(row);
-        cont.appendChild(document.createElement("br"));
-      });
+      var grid = document.createElement("div");
+      grid.className = "video-grid";
+      cl.forEach(function (l) { grid.appendChild(videoCard(l)); });
+      cont.appendChild(grid);
     });
 
     var sel = $("link-category");
@@ -471,6 +487,84 @@
     if (cats.indexOf(cur) >= 0) sel.value = cur;
 
     $("count").textContent = state.links.length + " link" + (state.links.length === 1 ? "" : "s");
+  }
+
+  // The 11-character video id from a YouTube link (youtu.be, watch?v=, shorts, embed, live), or null.
+  function youtubeId(url) {
+    var u;
+    try { u = new URL(url); } catch (e) { return null; }
+    var host = u.hostname.replace(/^(www\.|m\.|music\.)/, "");
+    var id = null;
+    if (host === "youtu.be") id = u.pathname.split("/")[1];
+    else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+      var parts = u.pathname.split("/");
+      if (parts[1] === "watch") id = u.searchParams.get("v");
+      else if (["shorts", "embed", "live", "v"].indexOf(parts[1]) >= 0) id = parts[2];
+    }
+    return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+  }
+  // Start time in seconds from ?t= / &start= (e.g. 90, 90s, 1m30s), or 0.
+  function youtubeStart(url) {
+    var t;
+    try { var u = new URL(url); t = u.searchParams.get("t") || u.searchParams.get("start"); } catch (e) { return 0; }
+    if (!t) return 0;
+    if (/^\d+$/.test(t)) return +t;
+    var m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(t);
+    return m ? (+(m[1] || 0)) * 3600 + (+(m[2] || 0)) * 60 + (+(m[3] || 0)) : 0;
+  }
+
+  // A grid card: the video's thumbnail, which turns into the player when clicked.
+  // Links that are not YouTube videos get a plain card that opens the link.
+  function videoCard(l) {
+    var card = document.createElement("figure");
+    card.className = "video-card";
+    var id = youtubeId(l.url);
+    var frame;
+    if (id) {
+      frame = document.createElement("button");
+      frame.type = "button";
+      frame.className = "video-frame";
+      frame.setAttribute("aria-label", "Play " + l.title);
+      var img = document.createElement("img");
+      img.src = "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg";
+      img.alt = ""; img.loading = "lazy";
+      var play = document.createElement("span");
+      play.className = "play";
+      frame.appendChild(img); frame.appendChild(play);
+      frame.onclick = function () {
+        var holder = document.createElement("div");
+        holder.className = "video-frame";
+        var start = youtubeStart(l.url);
+        var ifr = document.createElement("iframe");
+        ifr.src = "https://www.youtube-nocookie.com/embed/" + id + "?autoplay=1&rel=0" + (start ? "&start=" + start : "");
+        ifr.title = l.title;
+        ifr.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+        ifr.allowFullscreen = true;
+        holder.appendChild(ifr);
+        card.replaceChild(holder, frame);
+      };
+    } else {
+      frame = document.createElement("a");
+      frame.className = "video-frame no-thumb";
+      frame.href = l.url; frame.target = "_blank"; frame.rel = "noopener";
+      frame.textContent = "Open link \u2197";
+    }
+    card.appendChild(frame);
+
+    var cap = document.createElement("figcaption");
+    cap.className = "video-caption";
+    var a = document.createElement("a");
+    a.href = l.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = l.title;
+    a.title = "Open on YouTube";
+    cap.appendChild(a);
+    if (editing()) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "del-btn"; b.title = "Remove"; b.innerHTML = "&times;";
+      b.onclick = function () { if (confirm('Remove "' + l.title + '"?')) removeLink(l); };
+      cap.appendChild(b);
+    }
+    card.appendChild(cap);
+    return card;
   }
 
   function heading(ct) {
