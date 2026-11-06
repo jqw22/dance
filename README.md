@@ -31,6 +31,9 @@ Settings are kept separately from the links page, even though both are on
 
 ## Editing
 
+Each YouTube link shows as a thumbnail in a grid; click it to play the video in place,
+or click the title to open it on YouTube. Other links get a plain card.
+
 Click **Edit Links** to show the add/delete controls, and **Done Editing** when
 finished. Headings can be added and renamed; headings are listed A to Z. Use
 **↻ Reload from GitHub** to pull the latest list.
